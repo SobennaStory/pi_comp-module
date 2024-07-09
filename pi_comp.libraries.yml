@@ -1,0 +1,41 @@
+invitee-table:
+  css:
+    theme:
+      css/invitee-table.css: {}
+  js:
+    js/invitee-table.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/once
+invitee-user-match:
+  js:
+    js/invitee-user-match.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/once
+    - core/drupal.ajax
+    - core/drupal.message
+
+registration-sort-form:
+  version: 1.x
+  js:
+    js/registration-sort-form.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/jquery.once
+registration-list-view:
+  version: 1.x
+  js:
+    js/registration-list-view.js: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+
+
+pi_comp_styles:
+  css:
+    theme:
+      css/pi_comp.css: {}

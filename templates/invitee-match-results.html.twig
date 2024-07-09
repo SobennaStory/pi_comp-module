@@ -1,0 +1,33 @@
+<div class="invitee-match-results">
+  {{ page.messages }}
+  <h3>{{ 'Matched Users'|t }}</h3>
+  {% if matched_users %}
+    <ul>
+      {% for pi, user in matched_users %}
+        <li>{{ pi }} - {{ user.label() }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>{{ 'No users matched.'|t }}</p>
+  {% endif %}
+
+  <h3>{{ 'Unmatched Principal Investigators'|t }}</h3>
+  {% if unmatched_pis %}
+    <form id="create-users-form">
+      <ul>
+        {% for pi in unmatched_pis %}
+          <li>
+            {{ pi }}
+            <label>
+              <input type="checkbox" name="create_users[]" value="{{ pi }}">
+              {{ 'Create user?'|t }}
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+      <button type="submit">{{ 'Create Selected Users'|t }}</button>
+    </form>
+  {% else %}
+    <p>{{ 'All Principal Investigators matched.'|t }}</p>
+  {% endif %}
+</div>

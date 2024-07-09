@@ -1,0 +1,39 @@
+<?php
+
+use Drupal\node\Entity\NodeType;
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
+
+/**
+ * Implements hook_theme().
+ */
+function pi_comp_theme($existing, $type, $theme, $path) {
+  return [
+    'pi_comp_view' => [
+      'variables' => [
+        'table' => [],
+        'pager' => [],
+        'sorting_form' => [],
+        'email_form' => [],
+        'project_form' => [],
+      ],
+    ],
+    'registration_list_view' => [
+      'variables' => [
+        'registration_list' => NULL,
+        'sort_form' => NULL,
+        'webform_tables' => NULL,
+        'webforms_count' => NULL,
+        'users_count' => NULL,
+        'debug_webforms' => NULL,
+        'debug_users' => NULL,
+      ],
+    ],
+    'invitee_match_results' => [
+      'variables' => [
+        'matched_users' => [],
+        'unmatched_pis' => [],
+      ],
+    ],
+  ];
+}

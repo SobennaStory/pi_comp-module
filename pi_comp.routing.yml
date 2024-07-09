@@ -1,0 +1,66 @@
+pi_comp.projects:
+  path: '/pi-comp/projects'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Compilation\PICompViewController::build'
+    _title: 'Upload Project CSVs or Manually add Projects'
+  requirements:
+    _permission: 'access content'
+
+
+
+pi_comp.invitation_list_create:
+  path: '/pi-comp/invitation-list'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Invitation\InvitationListCreationController::build'
+    _title: 'Create and Modify Invitation Lists'
+  requirements:
+    _permission: 'access content'
+  methods: [GET, POST]
+pi_comp.invitee_list_export:
+  path: '/pi-comp/invitation-list/export'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Invitation\InviteeListExportForm'
+    _title: 'Export Invitee List'
+  requirements:
+    _permission: 'access content'
+pi_comp.manual_invitee_add:
+  path: '/pi-comp/invitation-list/add'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Invitation\ManualInviteeAddForm'
+    _title: 'Manually Add Users to Invitee List'
+  requirements:
+    _permission: 'access content'
+
+
+
+pi_comp.registration_list_view:
+  path: '/pi-comp/registration-list/{registration_list_id}'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::view'
+    _title: 'Create and Modify Registration Lists'
+    registration_list_id: null
+  requirements:
+    _permission: 'access content'
+
+pi_comp.webform_fields:
+  path: '/pi-comp/webform-fields/{webform_id}'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::getWebformFields'
+  requirements:
+    _permission: 'access content'
+
+pi_comp.user_submissions:
+  path: '/pi-comp/registration-list/{registration_list_id}/user/{user_id}'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::viewUserSubmissions'
+    _title: 'User Submissions'
+  requirements:
+    _permission: 'access content'
+
+pi_comp.export_emails:
+  path: '/pi-comp/registration-list/{registration_list_id}/export-emails'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::exportEmails'
+    _title: 'Export Invitee Emails'
+  requirements:
+    _permission: 'access content'

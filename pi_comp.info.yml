@@ -1,0 +1,10 @@
+name: PI Compilation
+description: Creates a page where you may upload projects and view PIs.
+package: Custom
+
+type: module
+core_version_requirement: ^9.4 || ^10
+
+stylesheets:
+  all:
+    - css/pi_comp.css

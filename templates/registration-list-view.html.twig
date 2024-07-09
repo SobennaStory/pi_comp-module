@@ -1,0 +1,9 @@
+<h1>{{ registration_list.label }}</h1>
+
+<a href="{{ path('pi_comp.export_emails', {'registration_list_id': registration_list.id()}) }}" class="button">Export Emails</a>
+
+{{ sort_form }}
+
+{% for table in webform_tables %}
+  {{ table }}
+{% endfor %}

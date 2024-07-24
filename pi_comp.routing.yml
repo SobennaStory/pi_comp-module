@@ -4,7 +4,7 @@ pi_comp.projects:
     _controller: '\Drupal\pi_comp\Controller\Compilation\PICompViewController::build'
     _title: 'Upload Project CSVs or Manually add Projects'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 
 
@@ -14,7 +14,8 @@ pi_comp.invitation_list:
     _controller: '\Drupal\pi_comp\Controller\Invitation\InvitationListCreationController::build'
     _title: 'Create and Modify Invitation Lists'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
+
   methods: [GET, POST]
 pi_comp.invitee_list_export:
   path: '/pi-comp/invitation-list/export'
@@ -22,14 +23,15 @@ pi_comp.invitee_list_export:
     _form: '\Drupal\pi_comp\Form\Invitation\InviteeListExportForm'
     _title: 'Export Invitee List'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
+
 pi_comp.manual_invitee_add:
   path: '/pi-comp/invitation-list/add'
   defaults:
     _form: '\Drupal\pi_comp\Form\Invitation\ManualInviteeAddForm'
     _title: 'Manually Add Users to Invitee List'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 
 pi_comp.registration_list_create:
@@ -38,7 +40,7 @@ pi_comp.registration_list_create:
     _form: '\Drupal\pi_comp\Form\Registration\RegistrationListCreation'
     _title: 'Create Registration List'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 pi_comp.registration_list_view:
   path: '/pi-comp/registration-list/{registration_list_id}'
@@ -47,14 +49,14 @@ pi_comp.registration_list_view:
     _title: 'Create and Modify Registration Lists'
     registration_list_id: null
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 pi_comp.webform_fields:
   path: '/pi-comp/webform-fields/{webform_id}'
   defaults:
     _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::getWebformFields'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 pi_comp.user_submissions:
   path: '/pi-comp/registration-list/{registration_list_id}/user/{user_id}'
@@ -62,7 +64,7 @@ pi_comp.user_submissions:
     _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::viewUserSubmissions'
     _title: 'User Submissions'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'
 
 pi_comp.export_emails:
   path: '/pi-comp/registration-list/{registration_list_id}/export-emails'
@@ -70,4 +72,4 @@ pi_comp.export_emails:
     _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::exportEmails'
     _title: 'Export Invitee Emails'
   requirements:
-    _permission: 'access content'
+    _permission: 'administer pi compilation'

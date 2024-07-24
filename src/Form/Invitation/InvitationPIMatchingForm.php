@@ -44,49 +44,36 @@ class InvitationPIMatchingForm extends FormBase {
       return $form;
     }
 
-    $pis = $this->getPrincipalInvestigators($selected_projects);
-    $matched_users = $this->matchUsers($pis);
-    $unmatched_pis = array_diff($pis, array_keys($matched_users));
+    $projects_users = $this->getUsersFromProjects($selected_projects);
 
-    $form['matched'] = [
-      '#theme' => 'item_list',
-      '#title' => $this->t('Matched Users'),
-      '#items' => array_map(function($user) {
-        return $user->getAccountName();
-      }, $matched_users),
-      '#empty' => $this->t('No users matched.'),
+    $form['projects'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Selected Projects and Users'),
+      '#open' => TRUE,
     ];
 
-    $form['unmatched'] = [
-      '#type' => 'fieldset',
-      '#title' => $this->t('Unmatched Principal Investigators'),
-    ];
-
-    foreach ($unmatched_pis as $index => $pi) {
-      $form['unmatched']["pi_$index"] = [
-        '#type' => 'fieldset',
-        '#title' => $pi,
+    foreach ($projects_users as $project_title => $project_info) {
+      $form['projects'][$project_title] = [
+        '#type' => 'details',
+        '#title' => $project_title,
+        '#open' => TRUE,
       ];
 
-      $form['unmatched']["pi_$index"]['action'] = [
-        '#type' => 'radios',
-        '#options' => [
-          'create' => $this->t('Create new user'),
-          'match' => $this->t('Match to existing user'),
+      $form['projects'][$project_title]['users'] = [
+        '#theme' => 'table',
+        '#header' => [
+          $this->t('Name'),
+          $this->t('Role'),
         ],
-        '#default_value' => 'create',
+        '#rows' => [],
       ];
 
-      $form['unmatched']["pi_$index"]['existing_user'] = [
-        '#type' => 'entity_autocomplete',
-        '#target_type' => 'user',
-        '#title' => $this->t('Existing user'),
-        '#states' => [
-          'visible' => [
-            ':input[name="pi_' . $index . '[action]"]' => ['value' => 'match'],
-          ],
-        ],
-      ];
+      foreach ($project_info['users'] as $user_info) {
+        $form['projects'][$project_title]['users']['#rows'][] = [
+          $user_info['user']->getAccountName(),
+          $user_info['role'],
+        ];
+      }
     }
 
     $form['invitee_list_name'] = [
@@ -95,162 +82,94 @@ class InvitationPIMatchingForm extends FormBase {
       '#required' => TRUE,
     ];
 
-    $form['create_users'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Create Selected Users'),
-      '#submit' => ['::createUsers'],
+    $form['actions'] = [
+      '#type' => 'actions',
     ];
 
-    $form['clear_selection'] = [
+    $form['actions']['submit'] = [
       '#type' => 'submit',
-      '#value' => $this->t('Clear Selection'),
-      '#submit' => ['::clearSelection'],
+      '#value' => $this->t('Create Invitation List'),
+    ];
+
+    $form['actions']['cancel'] = [
+      '#type' => 'submit',
+      '#value' => $this->t('Cancel'),
+      '#submit' => ['::cancelForm'],
+      '#limit_validation_errors' => [],
     ];
 
     return $form;
   }
 
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    // This method is no longer needed as we're displaying results immediately
-  }
-
-  public function createUsers(array &$form, FormStateInterface $form_state) {
     $values = $form_state->getValues();
-    $created_users = [];
-    $matched_users = [];
-    $existing_users = [];
-    $all_user_ids = [];
+    $invitee_list_name = $values['invitee_list_name'];
 
-    foreach ($values as $key => $value) {
-      if (strpos($key, 'pi_') === 0) {
-        $pi = $form['unmatched'][$key]['#title'];
-        $action = $value['action'];
+    $projects_users = $this->getUsersFromProjects($this->getRequest()->getSession()->get('selected_projects', []));
 
-        if ($action === 'create') {
-          $username = $this->formatUsername($pi);
-          $existing_user = $this->entityTypeManager->getStorage('user')
-            ->loadByProperties(['name' => $username]);
-
-          if (empty($existing_user)) {
-            try {
-              $user = $this->entityTypeManager->getStorage('user')->create([
-                'name' => $username,
-                'mail' => strtolower(str_replace(' ', '.', $username)) . '@example.com',
-                'pass' => 'ben',
-                'status' => 1,
-              ]);
-              $user->save();
-              $created_users[] = $user->getAccountName();
-              $all_user_ids[] = $user->id();
-            } catch (\Exception $e) {
-              $this->messenger()->addError($this->t('Error creating user @username: @error', ['@username' => $username, '@error' => $e->getMessage()]));
-            }
-          } else {
-            $user = reset($existing_user);
-            $existing_users[] = $user->getAccountName();
-            $all_user_ids[] = $user->id();
-          }
-        } elseif ($action === 'match' && !empty($value['existing_user'])) {
-          $user = $this->entityTypeManager->getStorage('user')->load($value['existing_user']);
-          if ($user) {
-            $matched_users[] = $user->getAccountName();
-            $all_user_ids[] = $user->id();
-          }
-        }
+    $user_ids = [];
+    foreach ($projects_users as $project_info) {
+      foreach ($project_info['users'] as $user_info) {
+        $user_ids[$user_info['user']->id()] = $user_info['user']->id();
       }
     }
 
-    $matched_list = $form['matched']['#items'];
-    foreach ($matched_list as $username) {
-      $user = $this->entityTypeManager->getStorage('user')
-        ->loadByProperties(['name' => $username]);
-      if (!empty($user)) {
-        $user = reset($user);
-        $all_user_ids[] = $user->id();
-      }
-    }
-
-    $all_user_ids = array_unique($all_user_ids);
-    $invitee_list_name = $form_state->getValue('invitee_list_name');
     $invitee_list = $this->entityTypeManager->getStorage('node')->create([
       'type' => 'invitee_list',
       'title' => $invitee_list_name,
       'field_users' => array_map(function($uid) {
         return ['target_id' => $uid];
-      }, $all_user_ids),
+      }, $user_ids),
     ]);
     $invitee_list->save();
 
-    if (!empty($created_users)) {
-      $this->messenger()->addStatus($this->t('Created user accounts for: @users', ['@users' => implode(', ', $created_users)]));
-      $this->messenger()->addStatus($this->t('All new users have been created with the password "ben".'));
-    }
-
-    if (!empty($matched_users)) {
-      $this->messenger()->addStatus($this->t('Matched PIs to existing users: @users', ['@users' => implode(', ', $matched_users)]));
-    }
-
-    if (!empty($existing_users)) {
-      $this->messenger()->addStatus($this->t('User accounts already exist for: @users', ['@users' => implode(', ', $existing_users)]));
-    }
-
     $this->messenger()->addStatus($this->t('Created invitee list "@name" with @count users.', [
       '@name' => $invitee_list_name,
-      '@count' => count($all_user_ids),
+      '@count' => count($user_ids),
     ]));
 
     $this->getRequest()->getSession()->remove('selected_projects');
 
-    $form_state->setRedirect('pi_comp.invitation_list_creation');
+    $form_state->setRedirect('pi_comp.invitation_list');
   }
 
-  public function clearSelection(array &$form, FormStateInterface $form_state) {
+  public function cancelForm(array &$form, FormStateInterface $form_state) {
+    $this->messenger()->addStatus($this->t('Operation cancelled.'));
     $this->getRequest()->getSession()->remove('selected_projects');
-    $this->messenger()->addStatus($this->t('Selection cleared.'));
-    $form_state->setRedirect('pi_comp.invitation_list_creation');
+    $form_state->setRedirect('pi_comp.invitation_list');
   }
 
-  private function formatUsername($pi) {
-    $parts = preg_split('/,\s*/', $pi, 2);
-    if (count($parts) === 2) {
-      $lastname = trim($parts[0]);
-      $firstname = trim($parts[1]);
-      $firstname = preg_replace('/\s+[A-Z]\.?$/', '', $firstname);
-      return $firstname . ' ' . $lastname;
-    }
-    return $pi;
-  }
-
-  private function getPrincipalInvestigators($selected_projects) {
-    $pis = [];
+  private function getUsersFromProjects($selected_projects) {
+    $projects_users = [];
     foreach ($selected_projects as $nid) {
       $node = $this->entityTypeManager->getStorage('node')->load($nid);
-      if ($node && $node->hasField('field_project_lead_pi_user')) {
-        $lead_pi_user = $node->get('field_project_lead_pi_user')->entity;
-        if ($lead_pi_user) {
-          $pis[] = $lead_pi_user->getAccountName();
-        } elseif ($node->hasField('field_project_lead_pi')) {
-          $pi = trim($node->get('field_project_lead_pi')->value);
-          if (!empty($pi)) {
-            $pis[] = $pi;
+      if ($node) {
+        $project_title = $node->getTitle();
+        $projects_users[$project_title] = [
+          'nid' => $nid,
+          'users' => [],
+        ];
+
+        if ($node->hasField('field_project_lead_pi_user')) {
+          $lead_pi_user = $node->get('field_project_lead_pi_user')->entity;
+          if ($lead_pi_user) {
+            $projects_users[$project_title]['users'][] = [
+              'user' => $lead_pi_user,
+              'role' => $this->t('PI'),
+            ];
+          }
+        }
+        if ($node->hasField('field_project_co_pis_user')) {
+          $co_pi_users = $node->get('field_project_co_pis_user')->referencedEntities();
+          foreach ($co_pi_users as $co_pi_user) {
+            $projects_users[$project_title]['users'][] = [
+              'user' => $co_pi_user,
+              'role' => $this->t('Co-PI'),
+            ];
           }
         }
       }
     }
-    return array_unique($pis);
-  }
-
-  private function matchUsers($pis) {
-    $matched_users = [];
-
-    foreach ($pis as $pi) {
-      $user = $this->entityTypeManager->getStorage('user')
-        ->loadByProperties(['name' => $pi]);
-      if (!empty($user)) {
-        $matched_users[$pi] = reset($user);
-      }
-    }
-
-    return $matched_users;
+    return $projects_users;
   }
 }

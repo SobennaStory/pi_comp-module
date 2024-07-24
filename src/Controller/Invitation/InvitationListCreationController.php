@@ -8,6 +8,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Drupal\Core\Session\SessionManagerInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Drupal\Core\Datetime\DrupalDateTime;
 
 class InvitationListCreationController extends ControllerBase {
   protected $formBuilder;
@@ -32,10 +34,19 @@ class InvitationListCreationController extends ControllerBase {
   }
 
   public function build() {
-    $build = [];
+    $build = [
+      '#attached' => [
+        'library' => [
+          'pi_comp/pi_comp_styles',
+        ],
+      ],
+    ];
 
     $this->sessionManager->start();
     $session = $this->requestStack->getCurrentRequest()->getSession();
+
+    $filter_form = $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\InvitationFilterForm');
+    $build['filter_form'] = $filter_form;
 
     // Get selected projects from the request or session
     $selected_projects = $this->requestStack->getCurrentRequest()->request->all()['selected_projects'] ?? [];
@@ -52,17 +63,31 @@ class InvitationListCreationController extends ControllerBase {
     // Pass selected projects to the form
     $build['form'] = $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\InvitationPIMatchingForm', $selected_projects);
 
-    // Only show the table, export form, and manual add form if no projects are selected
-    if (empty($selected_projects)) {
-      $build['table'] = $this->buildTable();
-      $build['export_form'] = $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\InviteeListExportForm');
-      $build['manual_add_form'] = $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\ManualInviteeAddForm');
-    }
+    // Always show the table
+    $build['table'] = $this->buildTable($filter_form);
+
+    $build['actions'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Invitee List Actions'),
+      '#open' => TRUE,
+    ];
+
+    $build['actions']['export'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Export Invitee List'),
+      'form' => $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\InviteeListExportForm'),
+    ];
+
+    $build['actions']['add'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Add Users to Invitee List'),
+      'form' => $this->formBuilder->getForm('Drupal\pi_comp\Form\Invitation\ManualInviteeAddForm'),
+    ];
 
     return $build;
   }
 
-  private function buildTable() {
+  private function buildTable($filter_form) {
     $header = [
       'checkbox' => [
         'data' => [
@@ -76,8 +101,7 @@ class InvitationListCreationController extends ControllerBase {
       'award_number' => $this->t('Award Number'),
       'lead_pi' => $this->t('Lead PI'),
       'institution' => $this->t('Institution'),
-      'project_type' => $this->t('Project Type'),
-      'core_areas' => $this->t('Core Areas'),
+      'date_range' => $this->t('Date Range'),
     ];
 
     $query = $this->entityTypeManager->getStorage('node')->getQuery()
@@ -85,6 +109,9 @@ class InvitationListCreationController extends ControllerBase {
       ->sort('created', 'DESC')
       ->pager(50)
       ->accessCheck(false);
+
+    $this->applyFilters($query, $filter_form);
+
     $nids = $query->execute();
     $nodes = $this->entityTypeManager->getStorage('node')->loadMultiple($nids);
 
@@ -93,12 +120,14 @@ class InvitationListCreationController extends ControllerBase {
       $lead_pi = $node->get('field_project_lead_pi_user')->entity;
       $lead_pi_name = $lead_pi ? $lead_pi->getDisplayName() : $node->get('field_project_lead_pi')->value;
 
-      $core_areas = [];
-      foreach ($node->get('field_project_core_areas')->referencedEntities() as $term) {
-        $core_areas[] = $term->label();
+      // Correctly handle the date range field
+      $date_range = $node->get('field_project_performance_period')->getValue();
+      $formatted_date_range = '';
+      if (!empty($date_range)) {
+        $start_date = new \DateTime($date_range[0]['value']);
+        $end_date = new \DateTime($date_range[0]['end_value']);
+        $formatted_date_range = $start_date->format('m/d/Y') . ' - ' . $end_date->format('m/d/Y');
       }
-
-      $project_type = $node->get('field_project_type')->entity;
 
       $rows[] = [
         'checkbox' => [
@@ -112,8 +141,7 @@ class InvitationListCreationController extends ControllerBase {
         'award_number' => $node->get('field_award_number')->entity ? $node->get('field_award_number')->entity->label() : '',
         'lead_pi' => $lead_pi_name,
         'institution' => $node->get('field_project_institution')->value,
-        'project_type' => $project_type ? $project_type->label() : '',
-        'core_areas' => implode(', ', $core_areas),
+        'date_range' => $formatted_date_range,
       ];
     }
 
@@ -140,7 +168,8 @@ class InvitationListCreationController extends ControllerBase {
         '#type' => 'actions',
         'submit' => [
           '#type' => 'submit',
-          '#value' => $this->t('Match Selected Projects'),
+          '#value' => $this->t('Create from Selected'),
+          '#submit' => ['::createFromSelected'],
         ],
       ],
     ];
@@ -152,5 +181,62 @@ class InvitationListCreationController extends ControllerBase {
     $build['#attached']['library'][] = 'pi_comp/invitee-table';
 
     return $build;
+  }
+
+  public function createFromSelected(array &$form, FormStateInterface $form_state) {
+    $selected_projects = $form_state->getValue('selected_projects', []);
+    $this->requestStack->getCurrentRequest()->getSession()->set('selected_projects', $selected_projects);
+    $form_state->setRedirect('pi_comp.invitation_list_create');
+  }
+
+  private function applyFilters($query, $filter_form) {
+    $filters = $this->requestStack->getCurrentRequest()->getSession()->get('project_filters', []);
+    if (empty($filters)) {
+      return;
+    }
+
+    $field = $filters['field'] ?? NULL;
+    $operator = $filters['operator'] ?? NULL;
+    $value = $filters['value'] ?? NULL;
+
+    if (!$field || !$operator || !$value) {
+      return;
+    }
+
+    switch ($field) {
+      case 'field_project_performance_period':
+        $start_date_field = $field . '.value';
+        $end_date_field = $field . '.end_value';
+        $date = new DrupalDateTime($value);
+        $formatted_date = $date->format('Y-m-d');
+
+        if ($operator === 'before') {
+          $query->condition($end_date_field, $formatted_date, '<=');
+        } elseif ($operator === 'after') {
+          $query->condition($start_date_field, $formatted_date, '>=');
+        } elseif ($operator === 'between' && isset($filters['value2'])) {
+          $end_date = new DrupalDateTime($filters['value2']);
+          $formatted_end_date = $end_date->format('Y-m-d');
+          $query->condition($start_date_field, $formatted_date, '>=');
+          $query->condition($end_date_field, $formatted_end_date, '<=');
+        }
+        break;
+
+      case 'title':
+      case 'field_project_institution':
+      case 'field_project_lead_pi':
+        switch ($operator) {
+          case 'contains':
+            $query->condition($field, '%' . $value . '%', 'LIKE');
+            break;
+          case 'starts_with':
+            $query->condition($field, $value . '%', 'LIKE');
+            break;
+          case 'ends_with':
+            $query->condition($field, '%' . $value, 'LIKE');
+            break;
+        }
+        break;
+    }
   }
 }

@@ -34,6 +34,16 @@ registration-list-view:
     - core/drupal
     - core/drupalSettings
 
+csv_import_confirmation:
+  js:
+    js/csv-import-confirmation.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/once
+    - core/drupal.dialog
+    - core/drupalSettings
+    - core/jquery.ui
 
 pi_comp_styles:
   css:

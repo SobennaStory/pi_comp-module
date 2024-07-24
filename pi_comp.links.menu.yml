@@ -1,20 +1,20 @@
 pi_comp.form_link:
-  title: 'Manage Projects'
+  title: 'PIMM_Manage Projects'
   parent: system.admin_content
   route_name: pi_comp.projects
   description: 'Upload CSV of projects or manually create'
   weight: 100
 
 pi_comp.inv_link:
-  title: 'Manage Invitee Lists'
+  title: 'PIMM_Manage Invitee Lists'
   parent: system.admin_content
-  route_name: pi_comp.invitation_list_create
+  route_name: pi_comp.invitation_list
   description: 'Compile lists and invite users.'
   weight: 100
 
 
 pi_comp.reg_view:
-  title: 'Manage Registrants'
+  title: 'PIMM_Manage Registrants'
   parent: system.admin_content
   route_name: pi_comp.registration_list_view
   description: 'View and create registrant lists.'

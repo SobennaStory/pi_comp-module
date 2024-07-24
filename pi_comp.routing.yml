@@ -8,7 +8,7 @@ pi_comp.projects:
 
 
 
-pi_comp.invitation_list_create:
+pi_comp.invitation_list:
   path: '/pi-comp/invitation-list'
   defaults:
     _controller: '\Drupal\pi_comp\Controller\Invitation\InvitationListCreationController::build'
@@ -32,6 +32,13 @@ pi_comp.manual_invitee_add:
     _permission: 'access content'
 
 
+pi_comp.registration_list_create:
+  path: '/pi-comp/registration-list/create'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Registration\RegistrationListCreation'
+    _title: 'Create Registration List'
+  requirements:
+    _permission: 'access content'
 
 pi_comp.registration_list_view:
   path: '/pi-comp/registration-list/{registration_list_id}'

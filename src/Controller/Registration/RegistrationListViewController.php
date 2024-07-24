@@ -34,7 +34,7 @@ class RegistrationListViewController extends ControllerBase {
     $registration_list = $this->entityTypeManager->getStorage('node')->load($registration_list_id);
     $webforms = $registration_list->field_regwebforms->referencedEntities();
     $users = $registration_list->field_regusers->referencedEntities();
-    $form = $this->formBuilder->getForm('Drupal\pi_comp\Form\Registration\RegistrationSortForm', $registration_list_id, $webforms);
+    //$form = $this->formBuilder->getForm('Drupal\pi_comp\Form\Registration\RegistrationSortForm', $registration_list_id, $webforms);
 
     $tables = [];
     foreach ($webforms as $webform) {
@@ -44,21 +44,26 @@ class RegistrationListViewController extends ControllerBase {
    $build = [
       '#theme' => 'registration_list_view',
       '#registration_list' => $registration_list,
-      '#sort_form' => $form,
+      //'#sort_form' => $form,
       '#webform_tables' => $tables,
       '#webforms_count' => count($webforms),
       '#users_count' => count($users),
       '#debug_webforms' => $registration_list->field_regwebforms->getValue(),
       '#debug_users' => $registration_list->field_regusers->getValue(),
-    ];
-
-    $this->attachLibrary($build);
+     '#attached' => [
+       'library' => [
+         'pi_comp/pi_comp_styles',
+         'pi_comp/invitee-table',
+       ],
+     ],
+   ];
 
     return $build;
   }
 
   private function attachLibrary(&$build) {
     $build['#attached']['library'][] = 'pi_comp/pi_comp_styles';
+
   }
 
   private function buildWebformTable($webform, $users, $registration_list_id, $sort_field = NULL) {
@@ -94,8 +99,12 @@ class RegistrationListViewController extends ControllerBase {
       '#type' => 'table',
       '#header' => $header,
       '#rows' => $rows,
-      '#empty' => $this->t('No submissions found for @webform', ['@webform' => $webform->label()]),
-      '#caption' => $this->t('Submissions for @webform', ['@webform' => $webform->label()]),
+      '#empty' => $this->t('<strong>No submissions found for @webform</strong>', ['@webform' => $webform->label()]),
+      '#caption' => $this->t('<strong>Submissions for @webform</strong>', ['@webform' => $webform->label()]),
+      '#attributes' => [
+        'class' => ['table-responsive', 'invitee-table'],
+        'id' => 'pimm-project-table',
+      ],
     ];
   }
 

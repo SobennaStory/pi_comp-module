@@ -5,6 +5,7 @@
 The PI Compilation module is a custom Drupal 10 module designed to manage projects, invitation lists, and registration lists. It provides functionality for uploading project CSVs, creating and modifying invitation lists, and managing registration lists.
 
 ## Features
+To access functionality, please access the content tab and  look for the links prefixed with PIMM_
 
 1. Project Management
   - Upload project CSVs

@@ -1,8 +1,479 @@
 <?php
 
+use Drupal\pi_comp\PiCompCompilerPass;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Drupal\node\Entity\NodeType;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\Core\Database\Database;
+use Drupal\taxonomy\Entity\Vocabulary;
+
+/**
+ * Implements hook_requirements().
+ */
+function pi_comp_requirements($phase) {
+  $requirements = [];
+
+  if ($phase == 'install') {
+    // Check for required modules
+    $required_modules = [
+      'webform' => 'Webform',
+      'datetime_range' => 'Datetime Range',
+      'taxonomy' => 'Taxonomy',
+      'field' => 'Field',
+      'node' => 'Node',
+      'user' => 'User',
+      'file' => 'File',
+    ];
+
+    $module_handler = \Drupal::moduleHandler();
+    $missing_modules = [];
+
+    foreach ($required_modules as $module => $name) {
+      if (!$module_handler->moduleExists($module)) {
+        $missing_modules[] = $name;
+      }
+    }
+
+    if (!empty($missing_modules)) {
+      $requirements['pi_comp_dependencies'] = [
+        'title' => t('PI Compilation Dependencies'),
+        'description' => t('The following required modules are missing: @modules', [
+          '@modules' => implode(', ', $missing_modules),
+        ]),
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    }
+
+    // Check PHP version
+    $php_version = PHP_VERSION;
+    $required_version = '7.4.0';
+    if (version_compare($php_version, $required_version, '<')) {
+      $requirements['pi_comp_php'] = [
+        'title' => t('PI Compilation PHP'),
+        'description' => t('PI Compilation requires PHP version @required or higher. Current version: @current', [
+          '@required' => $required_version,
+          '@current' => $php_version,
+        ]),
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    }
+
+    // Check for required Drupal core version
+    $core_version = \Drupal::VERSION;
+    $required_core = '9.4.0';
+    if (version_compare($core_version, $required_core, '<')) {
+      $requirements['pi_comp_core'] = [
+        'title' => t('PI Compilation Drupal Core'),
+        'description' => t('PI Compilation requires Drupal core version @required or higher. Current version: @current', [
+          '@required' => $required_core,
+          '@current' => $core_version,
+        ]),
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    }
+
+    // Check for required PHP extensions
+    $required_extensions = ['json', 'gd', 'xml'];
+    $missing_extensions = [];
+    foreach ($required_extensions as $extension) {
+      if (!extension_loaded($extension)) {
+        $missing_extensions[] = $extension;
+      }
+    }
+    if (!empty($missing_extensions)) {
+      $requirements['pi_comp_php_extensions'] = [
+        'title' => t('PI Compilation PHP Extensions'),
+        'description' => t('The following PHP extensions are required but missing: @extensions', [
+          '@extensions' => implode(', ', $missing_extensions),
+        ]),
+        'severity' => REQUIREMENT_ERROR,
+      ];
+    }
+  }
+
+  return $requirements;
+}
+
+/**
+ * Implements hook_container_build().
+ */
+function pi_comp_container_build(ContainerBuilder $container) {
+  $container->addCompilerPass(new PiCompCompilerPass());
+}
+
+/**
+ * Implements hook_module_preinstall().
+ */
+function pi_comp_module_preinstall($module) {
+  if ($module === 'pi_comp') {
+    // Check if required modules are enabled
+    $required_modules = ['webform', 'datetime_range', 'taxonomy', 'field', 'node', 'user', 'file'];
+    $module_handler = \Drupal::moduleHandler();
+    $missing_modules = [];
+
+    foreach ($required_modules as $required_module) {
+      if (!$module_handler->moduleExists($required_module)) {
+        $missing_modules[] = $required_module;
+      }
+    }
+
+    if (!empty($missing_modules)) {
+      // Try to install missing modules
+      try {
+        \Drupal::service('module_installer')->install($missing_modules);
+        \Drupal::logger('pi_comp')->notice('Successfully installed required modules: @modules', [
+          '@modules' => implode(', ', $missing_modules),
+        ]);
+      }
+      catch (\Exception $e) {
+        \Drupal::logger('pi_comp')->error('Failed to install required modules: @error', [
+          '@error' => $e->getMessage(),
+        ]);
+      }
+    }
+
+    \Drupal::logger('pi_comp')->notice('Installing pi_comp module');
+  }
+}
+
+/**
+ * Implements hook_install().
+ */
+function pi_comp_install() {
+  $schema = Database::getConnection()->schema();
+
+  // Create PIMM project tracking table
+  if (!$schema->tableExists('pimm_tracked_projects')) {
+    $schema->createTable('pimm_tracked_projects', [
+      'description' => 'Tracks which projects are part of PIMM.',
+      'fields' => [
+        'id' => [
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'description' => 'Primary Key',
+        ],
+        'nid' => [
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'description' => 'The node ID of the project',
+        ],
+        'status' => [
+          'type' => 'varchar',
+          'length' => 32,
+          'not null' => TRUE,
+          'default' => 'active',
+          'description' => 'Project status in PIMM',
+        ],
+        'added_date' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'description' => 'Unix timestamp when project was added to PIMM',
+        ],
+        'added_by' => [
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'description' => 'User ID who added the project',
+        ],
+        'notes' => [
+          'type' => 'text',
+          'size' => 'medium',
+          'description' => 'Optional notes about this project in PIMM',
+        ],
+      ],
+      'primary key' => ['id'],
+      'unique keys' => [
+        'nid' => ['nid'],
+      ],
+      'indexes' => [
+        'status' => ['status'],
+        'added_date' => ['added_date'],
+      ],
+    ]);
+  }
+
+  // Create required content types
+  _pi_comp_create_content_types();
+
+  // Create required taxonomies
+  _pi_comp_create_taxonomies();
+
+  // Create required fields
+  _pi_comp_create_fields();
+}
+
+/**
+ * Creates required content types.
+ */
+function _pi_comp_create_content_types() {
+  // Project type
+  if (!NodeType::load('project')) {
+    NodeType::create([
+      'type' => 'project',
+      'name' => 'Project',
+      'description' => 'Content type for research projects.',
+    ])->save();
+  }
+
+  // Invitee List type
+  if (!NodeType::load('invitee_list')) {
+    NodeType::create([
+      'type' => 'invitee_list',
+      'name' => 'Invitee List',
+      'description' => 'Content type for managing lists of invitees.',
+    ])->save();
+  }
+
+  // Registration List type
+  if (!NodeType::load('registration_list')) {
+    NodeType::create([
+      'type' => 'registration_list',
+      'name' => 'Registration List',
+      'description' => 'Content type for managing registration lists.',
+    ])->save();
+  }
+}
+
+/**
+ * Creates required taxonomies.
+ */
+function _pi_comp_create_taxonomies() {
+  $vocabularies = [
+    'award_numbers' => 'Award Numbers',
+    'tools_keywords' => 'Tools Keywords',
+    'umbrella_groups' => 'Umbrella Groups',
+    'keywords' => 'Keywords',
+    'topics' => 'Topics',
+  ];
+
+  foreach ($vocabularies as $vid => $name) {
+    if (!Vocabulary::load($vid)) {
+      Vocabulary::create([
+        'vid' => $vid,
+        'name' => $name,
+      ])->save();
+    }
+  }
+}
+
+/**
+ * Creates required fields.
+ */
+function _pi_comp_create_fields() {
+  // Project fields
+  $project_fields = [
+    'body' => [
+      'type' => 'text_with_summary',
+      'label' => 'Abstract',
+    ],
+    'field_award_number' => [
+      'type' => 'entity_reference',
+      'label' => 'Award Number',
+      'target_type' => 'taxonomy_term',
+      'target_bundle' => 'award_numbers',
+    ],
+    'field_project_co_pis_user' => [
+      'type' => 'entity_reference',
+      'label' => 'Co-PIs',
+      'target_type' => 'user',
+      'cardinality' => -1,
+    ],
+    'field_project_co_pis' => [
+      'type' => 'string',
+      'label' => 'Co-PIs (text)',
+    ],
+    'field_project_core_areas' => [
+      'type' => 'entity_reference',
+      'label' => 'Core Areas',
+      'target_type' => 'taxonomy_term',
+      'target_bundle' => 'umbrella_groups',
+      'cardinality' => -1,
+    ],
+    'field_project_institution' => [
+      'type' => 'string',
+      'label' => 'Institution',
+    ],
+    'field_project_keywords' => [
+      'type' => 'entity_reference',
+      'label' => 'Keywords',
+      'target_type' => 'taxonomy_term',
+      'target_bundle' => 'tools_keywords',
+      'cardinality' => -1,
+    ],
+    'field_project_lead_pi_user' => [
+      'type' => 'entity_reference',
+      'label' => 'Lead PI',
+      'target_type' => 'user',
+    ],
+    'field_project_lead_pi' => [
+      'type' => 'string',
+      'label' => 'Lead PI (text)',
+    ],
+    'field_project_performance_period' => [
+      'type' => 'daterange',
+      'label' => 'Performance Period',
+    ],
+    'field_project_type' => [
+      'type' => 'entity_reference',
+      'label' => 'Project Type',
+      'target_type' => 'taxonomy_term',
+      'target_bundle' => 'umbrella_groups',
+    ],
+    'field_project_url' => [
+      'type' => 'link',
+      'label' => 'Project URL',
+    ],
+    'field_project_researchers' => [
+      'type' => 'entity_reference',
+      'label' => 'Researchers',
+      'target_type' => 'user',
+      'cardinality' => -1,
+    ],
+    'field_project_sponsor' => [
+      'type' => 'text',
+      'label' => 'Sponsor',
+    ],
+  ];
+
+  foreach ($project_fields as $field_name => $field_info) {
+    _pi_comp_create_field($field_name, $field_info, 'project');
+  }
+
+  // Invitee List fields
+  $invitee_fields = [
+    'field_users' => [
+      'type' => 'entity_reference',
+      'label' => 'Users',
+      'target_type' => 'user',
+      'cardinality' => -1,
+    ],
+  ];
+
+  foreach ($invitee_fields as $field_name => $field_info) {
+    _pi_comp_create_field($field_name, $field_info, 'invitee_list');
+  }
+
+  // Registration List fields
+  $registration_fields = [
+    'field_regusers' => [
+      'type' => 'entity_reference',
+      'label' => 'Registered Users',
+      'target_type' => 'user',
+      'cardinality' => -1,
+    ],
+    'field_regwebforms' => [
+      'type' => 'entity_reference',
+      'label' => 'Registration Webforms',
+      'target_type' => 'webform',
+      'cardinality' => -1,
+    ],
+    'field_inviteelist' => [
+      'type' => 'entity_reference',
+      'label' => 'Invitee List',
+      'target_type' => 'node',
+      'target_bundle' => 'invitee_list',
+    ],
+  ];
+
+  foreach ($registration_fields as $field_name => $field_info) {
+    _pi_comp_create_field($field_name, $field_info, 'registration_list');
+  }
+}
+
+/**
+ * Helper function to create a field.
+ */
+function _pi_comp_create_field($field_name, $field_info, $bundle) {
+  // Create field storage if it doesn't exist
+  if (!FieldStorageConfig::loadByName('node', $field_name)) {
+    FieldStorageConfig::create([
+      'field_name' => $field_name,
+      'entity_type' => 'node',
+      'type' => $field_info['type'],
+      'cardinality' => $field_info['cardinality'] ?? 1,
+      'settings' => $field_info['type'] === 'entity_reference' ? [
+        'target_type' => $field_info['target_type'],
+      ] : [],
+    ])->save();
+  }
+
+  // Create field instance if it doesn't exist
+  if (!FieldConfig::loadByName('node', $bundle, $field_name)) {
+    FieldConfig::create([
+      'field_name' => $field_name,
+      'entity_type' => 'node',
+      'bundle' => $bundle,
+      'label' => $field_info['label'],
+      'settings' => $field_info['type'] === 'entity_reference' && !empty($field_info['target_bundle']) ? [
+        'handler' => 'default',
+        'handler_settings' => [
+          'target_bundles' => [
+            $field_info['target_bundle'] => $field_info['target_bundle'],
+          ],
+        ],
+      ] : [],
+    ])->save();
+  }
+}
+
+/**
+ * Implements hook_schema().
+ */
+function pi_comp_schema() {
+  $schema['pimm_tracked_projects'] = [
+    'description' => 'Tracks which projects are part of PIMM.',
+    'fields' => [
+      'id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary Key',
+      ],
+      'nid' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'The node ID of the project',
+      ],
+      'status' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'active',
+        'description' => 'Project status in PIMM',
+      ],
+      'added_date' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Unix timestamp when project was added to PIMM',
+      ],
+      'added_by' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'User ID who added the project',
+      ],
+      'notes' => [
+        'type' => 'text',
+        'size' => 'medium',
+        'description' => 'Optional notes about this project in PIMM',
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'nid' => ['nid'],
+    ],
+    'indexes' => [
+      'status' => ['status'],
+      'added_date' => ['added_date'],
+    ],
+  ];
+
+  return $schema;
+}
 
 /**
  * Implements hook_theme().
@@ -34,6 +505,12 @@ function pi_comp_theme($existing, $type, $theme, $path) {
         'matched_users' => [],
         'unmatched_pis' => [],
       ],
+    ],
+    'pimm_dashboard' => [
+      'variables' => [
+        'data' => [],
+      ],
+      'template' => 'pimm-dashboard',
     ],
   ];
 }

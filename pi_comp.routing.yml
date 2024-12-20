@@ -1,3 +1,43 @@
+pi_comp.service_test:
+  path: '/admin/pimm/service-test'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\ServiceTestController::debug'
+    _title: 'Service Registration Test'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.cache_test:
+  path: '/admin/pimm/cache-test'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\CacheTestController::test'
+    _title: 'Cache Test'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.diagnose:
+  path: '/admin/pimm/diagnose'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\DiagnosticController::diagnose'
+    _title: 'Service Diagnostic'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.test:
+  path: '/admin/pimm/test'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\TestController::test'
+    _title: 'Service Test'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
 pi_comp.projects:
   path: '/pi-comp/projects'
   defaults:
@@ -5,8 +45,61 @@ pi_comp.projects:
     _title: 'Upload Project CSVs or Manually add Projects'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
+pi_comp.project_add:
+  path: '/admin/pimm/project/add'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Compilation\ProjectAddForm'
+    _title: 'Add Project to PIMM'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
+pi_comp.project_remove:
+  path: '/admin/pimm/project/{nid}/remove'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Compilation\ProjectRemoveForm'
+    _title: 'Remove Project from PIMM'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.project_status:
+  path: '/admin/pimm/project/{nid}/status'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Compilation\ProjectStatusForm'
+    _title: 'Update Project Status'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.project.status_update:
+  path: '/admin/pimm/project/{nid}/status'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Compilation\ProjectStatusForm'
+    _title_callback: '\Drupal\pi_comp\Controller\DashboardController::getStatusFormTitle'
+  requirements:
+    _permission: 'access administration pages'
+  options:
+    _admin_route: TRUE
+    parameters:
+      nid:
+        type: entity:node
+
+pi_comp.bulk_add_projects:
+  path: '/admin/pimm/project/bulk'
+  defaults:
+    _form: '\Drupal\pi_comp\Form\Compilation\ProjectBulkAddForm'
+    _title: 'Add All Projects'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.invitation_list:
   path: '/pi-comp/invitation-list'
@@ -15,8 +108,10 @@ pi_comp.invitation_list:
     _title: 'Create and Modify Invitation Lists'
   requirements:
     _permission: 'administer pi compilation'
-
   methods: [GET, POST]
+  options:
+    _admin_route: TRUE
+
 pi_comp.invitee_list_export:
   path: '/pi-comp/invitation-list/export'
   defaults:
@@ -24,6 +119,8 @@ pi_comp.invitee_list_export:
     _title: 'Export Invitee List'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.manual_invitee_add:
   path: '/pi-comp/invitation-list/add'
@@ -32,7 +129,8 @@ pi_comp.manual_invitee_add:
     _title: 'Manually Add Users to Invitee List'
   requirements:
     _permission: 'administer pi compilation'
-
+  options:
+    _admin_route: TRUE
 
 pi_comp.registration_list_create:
   path: '/pi-comp/registration-list/create'
@@ -41,6 +139,8 @@ pi_comp.registration_list_create:
     _title: 'Create Registration List'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.registration_list_view:
   path: '/pi-comp/registration-list/{registration_list_id}'
@@ -50,6 +150,8 @@ pi_comp.registration_list_view:
     registration_list_id: null
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.webform_fields:
   path: '/pi-comp/webform-fields/{webform_id}'
@@ -57,6 +159,8 @@ pi_comp.webform_fields:
     _controller: '\Drupal\pi_comp\Controller\Registration\RegistrationListViewController::getWebformFields'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.user_submissions:
   path: '/pi-comp/registration-list/{registration_list_id}/user/{user_id}'
@@ -65,6 +169,8 @@ pi_comp.user_submissions:
     _title: 'User Submissions'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
 
 pi_comp.export_emails:
   path: '/pi-comp/registration-list/{registration_list_id}/export-emails'
@@ -73,3 +179,15 @@ pi_comp.export_emails:
     _title: 'Export Invitee Emails'
   requirements:
     _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE
+
+pi_comp.dashboard:
+  path: '/admin/pimm/dashboard'
+  defaults:
+    _controller: '\Drupal\pi_comp\Controller\DashboardController::dashboard'
+    _title: 'PI Meeting Management Dashboard'
+  requirements:
+    _permission: 'administer pi compilation'
+  options:
+    _admin_route: TRUE

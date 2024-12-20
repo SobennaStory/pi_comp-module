@@ -87,3 +87,142 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+.projects-table {
+  margin-top: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.status-active {
+  background: #DEF7EC;
+  color: #03543F;
+}
+
+.status-pending {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.status-inactive {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.status-archived {
+  background: #F3F4F6;
+  color: #1F2937;
+}
+
+.button-group {
+  display: flex;
+  gap: 4px;
+}
+
+.button--danger {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+}
+
+.button--danger:hover {
+  background: #FEE2E2;
+  border-color: #EF4444;
+  color: #7F1D1D;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-state p {
+  color: #6B7280;
+  margin-bottom: 20px;
+}
+
+/* Make tables responsive */
+@media screen and (max-width: 1024px) {
+  .projects-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+}
+
+/* Add to your existing dashboard.css */
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-content {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+  min-width: 300px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid #e2e8f0;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.dropdown-content.hidden {
+  display: none;
+}
+
+.dropdown-content:before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 16px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid white;
+}
+
+.dropdown-content form {
+  margin: 0;
+}
+
+/* Add transition for smooth show/hide */
+.dropdown-content {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.dropdown-content:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Adjust form layouts inside dropdowns */
+.dropdown-content .form-item {
+  margin-bottom: 1rem;
+}
+
+.dropdown-content .form-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}

@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\pi_comp;
+namespace Drupal\pi_comp\Services;
 
 /**
  * Csv parser manager interface.

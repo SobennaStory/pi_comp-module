@@ -1,0 +1,356 @@
+{# templates/pimm-dashboard.html.twig #}
+<div class="pimm-dashboard">
+  <div class="dashboard-header">
+    <h1>PI Meeting Management Dashboard</h1>
+
+    {# Stats Section #}
+    <div class="dashboard-stats">
+      <div class="stat-box">
+        <h3>Projects</h3>
+        <span class="stat-number">{{ data.projects.count }}</span>
+      </div>
+      <div class="stat-box">
+        <h3>Invitation Lists</h3>
+        <div class="stat-details">
+          <span class="stat-number">{{ data.invitations.count }}</span>
+          <span class="stat-label">Lists</span>
+          <span class="stat-number">{{ data.invitations.total_users }}</span>
+          <span class="stat-label">Total Users</span>
+        </div>
+      </div>
+      <div class="stat-box">
+        <h3>Registration Lists</h3>
+        <div class="stat-details">
+          <span class="stat-number">{{ data.registrations.count }}</span>
+          <span class="stat-label">Lists</span>
+          <span class="stat-number">{{ data.registrations.total_users }}</span>
+          <span class="stat-label">Total Registrants</span>
+        </div>
+      </div>
+    </div>
+
+    {# Quick Actions Section #}
+    <div class="dashboard-section quick-actions">
+      <div class="quick-actions-header">
+        <h3>Quick Actions</h3>
+        <i class="fas fa-chevron-down toggle-icon expanded"></i>
+      </div>
+      <div class="quick-actions-content">
+        <div class="action-groups">
+          <div class="action-group">
+            <h4>Projects</h4>
+            <a href="{{ path('pi_comp.projects') }}" class="button">
+              <i class="fas fa-file-import"></i> Import Projects
+            </a>
+            <a href="{{ path('pi_comp.project_add') }}" class="button">
+              <i class="fas fa-plus"></i> New Project
+            </a>
+            <a href="{{ path('pi_comp.projects') }}#view" class="button">
+              <i class="fas fa-list"></i> View All Projects
+            </a>
+          </div>
+
+          <div class="action-group">
+            <h4>Invitations</h4>
+            <a href="{{ path('pi_comp.invitation_list') }}" class="button">
+              <i class="fas fa-users"></i>
+              Create Invitation List
+            </a>
+            <a href="{{ path('pi_comp.manual_invitee_add') }}" class="button">
+              <i class="fas fa-user-plus"></i>
+              Add Invitees
+            </a>
+            <a href="{{ path('pi_comp.invitee_list_export') }}" class="button">
+              <i class="fas fa-file-export"></i>
+              Export List
+            </a>
+          </div>
+
+          <div class="action-group">
+            <h4>Registration</h4>
+            <a href="{{ path('pi_comp.registration_list_create') }}" class="button">
+              <i class="fas fa-clipboard-list"></i>
+              Create Registration List
+            </a>
+            <a href="{{ path('pi_comp.registration_list_view') }}" class="button">
+              <i class="fas fa-tasks"></i>
+              Manage Lists
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# PIMM Projects Section #}
+  <div class="dashboard-section" id="pimm-projects-section" data-project-count="{{ data.projects.count }}">
+    <div class="section-header">
+      <div class="header-main">
+        <h3>PIMM Projects {% if data.projects.count > 0 %}({{ data.projects.count }}){% endif %}</h3>
+        {% if data.projects.status_counts %}
+          <div class="status-summary">
+            {% for status, count in data.projects.status_counts %}
+              <span class="status-badge status-{{ status }}">{{ count }} {{ status|capitalize }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      <div class="header-actions">
+        <div class="dropdown">
+          <button class="button button--primary button--small dropdown-toggle" data-dropdown="bulk-add-project">
+            <i class="fas fa-plus"></i> Add All Projects
+          </button>
+          <div id="bulk-add-project-dropdown" class="dropdown-content hidden">
+            {{ data.projects.bulk_form }}
+          </div>
+        </div>
+        <div class="dropdown">
+          <button class="button button--primary button--small dropdown-toggle" data-dropdown="single-add-project">
+            <i class="fas fa-plus"></i> Add Project
+          </button>
+          <div id="single-add-project-dropdown" class="dropdown-content hidden">
+            {{ data.projects.add_form }}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section-content">
+      <div id="pimm-projects-content" class="collapsible-content expanded">
+        {% if data.projects.rows %}
+          <div class="table-responsive">
+            <table class="dashboard-table projects-table">
+              <thead>
+              <tr>
+                <th>ID</th>
+                <th class="w-1/3">Project Title</th>
+                <th>Award Number</th>
+                <th>PI</th>
+                <th>Added Date</th>
+                <th>Status</th>
+                <th class="text-right">Actions</th>
+              </tr>
+              </thead>
+              <tbody>
+              {% for project in data.projects.rows %}
+                <tr class="project-row {% if project.notes %}has-notes{% endif %}" data-nid="{{ project.nid }}">
+                  <td>{{ project.id }}</td>
+                  <td>
+                    <div class="project-title">
+                      {{ project.title }}
+                      {% if project.notes %}
+                        <button class="notes-toggle"
+                                data-target="project-notes-{{ project.id }}"
+                                title="Show Notes">
+                          <i class="fas fa-sticky-note"></i>
+                        </button>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td>{{ project.award_number }}</td>
+                  <td>{{ project.pi }}</td>
+                  <td>{{ project.added_date }}</td>
+                  <td>
+                  <span class="status-badge status-{{ project.status }}">
+                    {{ project.status|capitalize }}
+                  </span>
+                  </td>
+                  <td class="actions">
+                    <div class="button-group">
+                      {% if data.projects.forms[project.nid].status %}
+                        <div class="dropdown">
+                          <button class="button button--small dropdown-toggle" data-dropdown="status-{{ project.nid }}">
+                            <i class="fas fa-edit"></i> Status
+                          </button>
+                          <div id="status-{{ project.nid }}-dropdown" class="dropdown-content hidden">
+                            {{ data.projects.forms[project.nid].status|raw }}
+                          </div>
+                        </div>
+                      {% endif %}
+                      {% if data.projects.forms[project.nid].remove %}
+                        <div class="dropdown">
+                          <button class="button button--small button--danger dropdown-toggle" data-dropdown="remove-{{ project.nid }}">
+                            <i class="fas fa-trash"></i> Remove
+                          </button>
+                          <div id="remove-{{ project.nid }}-dropdown" class="dropdown-content hidden">
+                            {{ data.projects.forms[project.nid].remove|raw }}
+                          </div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+                {% if project.notes %}
+                  <tr id="project-notes-{{ project.id }}" class="details-row notes-row hidden">
+                    <td colspan="7">
+                      <div class="details-content project-notes">
+                        <i class="fas fa-sticky-note"></i>
+                        <span class="notes-content">{{ project.notes }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                {% endif %}
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <i class="fas fa-clipboard-list fa-3x text-gray-400"></i>
+            <p>No projects are currently being tracked in PIMM.</p>
+            <button class="button button--primary dropdown-toggle" data-dropdown="add-project">
+              <i class="fas fa-plus"></i> Add Your First Project
+            </button>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Lists Grid #}
+  <div class="lists-grid">
+    {# Invitation Lists Section #}
+    <div class="dashboard-section" id="invitation-lists-section">
+      <div class="section-header">
+        <h3>Invitation Lists</h3>
+        <div class="header-actions">
+          <a href="{{ path('pi_comp.invitation_list') }}" class="button button--primary">Create New List</a>
+        </div>
+      </div>
+      <div class="section-content">
+        {% if data.invitations.lists %}
+          <table class="dashboard-table" id="invitation-table">
+            <thead>
+            <tr>
+              <th>List Name</th>
+              <th>Created</th>
+              <th>Users</th>
+              <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for list in data.invitations.lists %}
+              <tr data-list-id="{{ list.id }}" class="expandable-row">
+                <td>{{ list.title }}</td>
+                <td>{{ list.created }}</td>
+                <td>{{ list.user_count }}</td>
+                <td class="actions">
+                  <button class="button button--small toggle-details" data-target="invitation-details-{{ list.id }}">View Users</button>
+                  <a href="{{ path('pi_comp.invitee_list_export') }}?list={{ list.id }}" class="button button--small">Export</a>
+                </td>
+              </tr>
+              <tr id="invitation-details-{{ list.id }}" class="details-row hidden">
+                <td colspan="4">
+                  <div class="details-content">
+                    <h4>Users in {{ list.title }}</h4>
+                    <table class="inner-table">
+                      <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                      {% for user in list.users %}
+                        <tr>
+                          <td>{{ user.name }}</td>
+                          <td>{{ user.email }}</td>
+                          <td>{{ user.role }}</td>
+                        </tr>
+                      {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p>No invitation lists found.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Registration Lists Section #}
+    <div class="dashboard-section" id="registration-lists-section">
+      <div class="section-header">
+        <h3>Registration Lists</h3>
+        <div class="header-actions">
+          <a href="{{ path('pi_comp.registration_list_create') }}" class="button button--primary">Create New List</a>
+        </div>
+      </div>
+      <div class="section-content">
+        {% if data.registrations.lists %}
+          <table class="dashboard-table" id="registration-table">
+            <thead>
+            <tr>
+              <th>List Name</th>
+              <th>Created</th>
+              <th>Registrants</th>
+              <th>Webforms</th>
+              <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for list in data.registrations.lists %}
+              <tr data-list-id="{{ list.id }}" class="expandable-row">
+                <td>{{ list.title }}</td>
+                <td>{{ list.created }}</td>
+                <td>{{ list.registrant_count }}</td>
+                <td>{{ list.webform_count }}</td>
+                <td class="actions">
+                  <button class="button button--small toggle-details"
+                          data-target="registration-details-{{ list.id }}">View Details</button>
+                  <a href="{{ path('pi_comp.export_emails', {'registration_list_id': list.id}) }}"
+                     class="button button--small">Export</a>
+                </td>
+              </tr>
+              <tr id="registration-details-{{ list.id }}" class="details-row hidden">
+                <td colspan="5">
+                  <div class="details-content">
+                    <div class="detail-section">
+                      <h4>Registrants in {{ list.title }}</h4>
+                      <table class="inner-table">
+                        <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Status</th>
+                          <th>Submission Date</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for user in list.registrants %}
+                          <tr>
+                            <td>{{ user.name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.status }}</td>
+                            <td>{{ user.submitted }}</td>
+                          </tr>
+                        {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="detail-section">
+                      <h4>Associated Webforms</h4>
+                      <ul class="webform-list">
+                        {% for webform in list.webforms %}
+                          <li>{{ webform.title }}</li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p>No registration lists found.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

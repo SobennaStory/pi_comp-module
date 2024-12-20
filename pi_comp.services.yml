@@ -2,6 +2,17 @@ services:
   plugin.manager.importer:
     class: Drupal\csv_importer\Plugin\ImporterManager
     parent: default_plugin_manager
+
   pi_comp.parser:
-    class: Drupal\pi_comp\Parser
+    class: Drupal\pi_comp\Services\Parser
     arguments: ['@entity_type.manager']
+
+  pi_comp.project_manager:
+    class: Drupal\pi_comp\Services\PimmProjectManager
+    arguments:
+      - '@entity_type.manager'
+      - '@database'
+      - '@current_user'
+      - '@cache_tags.invalidator'
+  pi_comp.test:
+    class: Drupal\pi_comp\Services\TestService

@@ -5,6 +5,17 @@ package: Custom
 type: module
 core_version_requirement: ^9.4 || ^10
 
+dependencies:
+  - drupal:webform
+  - drupal:datetime_range
+  - drupal:node
+  - drupal:taxonomy
+  - drupal:user
+  - drupal:file
+  - drupal:views
+
+configure: pi_comp.dashboard
+
 stylesheets:
   all:
     - css/pi_comp.css

@@ -9,7 +9,7 @@ use Drupal\node\Entity\Node;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
-use Drupal\pi_comp\ParserInterface;
+use Drupal\pi_comp\Services\ParserInterface;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\csv_importer\Plugin\ImporterManager;
 use Drupal\Core\Ajax\AjaxResponse;
@@ -62,6 +62,11 @@ class piForm3 extends FormBase {
   }
 
   public function buildForm(array $form, FormStateInterface $form_state) {
+    $form['submit_uploads'] = [
+      '#type' => 'hidden',
+      '#default_value' => 'false',
+    ];
+
     $form['importer'] = [
       '#type' => 'container',
       '#attributes' => [
@@ -121,105 +126,126 @@ class piForm3 extends FormBase {
   }
 
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $csv = current($form_state->getValue('csv'));
-    $delimiter = $form_state->getValue('delimiter');
-    $csv_parse = $this->parser->getCsvById($csv, $delimiter);
+    if ($form_state->getValue('submit_uploads') === 'true') {
+      $csv = current($form_state->getValue('csv'));
+      $delimiter = $form_state->getValue('delimiter');
+      $csv_parse = $this->parser->getCsvById($csv, $delimiter);
 
-    $format = isset($csv_parse[0]['AwardNumber']) ? 'format1' : 'format2';
-    $mapping = $this->getColumnMapping($format);
+      $format = isset($csv_parse[0]['AwardNumber']) ? 'format1' : 'format2';
+      $mapping = $this->getColumnMapping($format);
 
-    $changes_made = false;
+      $changes_made = false;
 
-    foreach ($csv_parse as $csv_entry) {
-      $award_number = $csv_entry[$format == 'format1' ? 'AwardNumber' : 'Award Number'];
+      foreach ($csv_parse as $csv_entry) {
+        $award_number = $csv_entry[$format == 'format1' ? 'AwardNumber' : 'Award Number'];
 
-      $award_terms = $this->entityTypeManager->getStorage('taxonomy_term')->loadByProperties([
-        'vid' => 'award_numbers',
-        'name' => $award_number,
-      ]);
-
-      if (empty($award_terms)) {
-        $changes_made = true;
-        $award_term = $this->entityTypeManager->getStorage('taxonomy_term')->create([
+        $award_terms = $this->entityTypeManager->getStorage('taxonomy_term')->loadByProperties([
           'vid' => 'award_numbers',
           'name' => $award_number,
         ]);
-        $award_term->save();
-      } else {
-        $award_term = reset($award_terms);
-      }
 
-      $nodes = $this->entityTypeManager->getStorage('node')->loadByProperties([
-        'type' => 'project',
-        'field_award_number' => $award_term->id(),
-      ]);
-
-      $node = reset($nodes);
-
-      if (!$node) {
-        $changes_made = true;
-        $node = $this->entityTypeManager->getStorage('node')->create([
-          'type' => 'project',
-        ]);
-      }
-
-      $changes = $this->projectNeedsUpdate($node, $csv_entry, $format);
-      if (!empty($changes)) {
-        $changes_made = true;
-        foreach ($changes as $change) {
-          $this->updateNodeField($node, $change['field'], $change['new'], $format, $csv_entry);
-        }
-
-        $node->set("field_project_sponsor", [
-          'value' => "NSF",
-          'format' => 'full_html',
-        ]);
-        $node->save();
-        \Drupal::logger('pi_comp')->notice('Project @award_number updated/created.', ['@award_number' => $award_number]);
-      }
-
-      $pis = $this->extractPIs($csv_entry, $format);
-      $matched_users = $this->matchUsers($pis);
-
-      $lead_pi = $pis[0];
-      $lead_pi_user = $node->get('field_project_lead_pi_user')->entity;
-      if (!$lead_pi_user || $lead_pi_user->getAccountName() != $this->formatUsername($lead_pi['name'])) {
-        if ($matched_users[$lead_pi['name']]['matched']) {
-          $lead_pi_user = $matched_users[$lead_pi['name']]['user'];
+        if (empty($award_terms)) {
+          $changes_made = true;
+          $award_term = $this->entityTypeManager->getStorage('taxonomy_term')->create([
+            'vid' => 'award_numbers',
+            'name' => $award_number,
+          ]);
+          $award_term->save();
         } else {
-          $lead_pi_user = $this->createUser($lead_pi);
+          $award_term = reset($award_terms);
         }
-        $node->set('field_project_lead_pi_user', ['target_id' => $lead_pi_user->id()]);
-      }
 
-      $existing_co_pis = $node->get('field_project_co_pis_user')->referencedEntities();
-      $existing_co_pi_names = array_map(function($user) {
-        return $user->getAccountName();
-      }, $existing_co_pis);
+        $nodes = $this->entityTypeManager->getStorage('node')->loadByProperties([
+          'type' => 'project',
+          'field_award_number' => $award_term->id(),
+        ]);
 
-      $co_pi_users = [];
-      foreach (array_slice($pis, 1) as $co_pi) {
-        $formatted_name = $this->formatUsername($co_pi['name']);
-        if (!in_array($formatted_name, $existing_co_pi_names)) {
-          if ($matched_users[$co_pi['name']]['matched']) {
-            $co_pi_user = $matched_users[$co_pi['name']]['user'];
-          } else {
-            $co_pi_user = $this->createUser($co_pi);
+        $node = reset($nodes);
+
+        if (!$node) {
+          $changes_made = true;
+          $node = $this->entityTypeManager->getStorage('node')->create([
+            'type' => 'project',
+          ]);
+        }
+
+        $changes = $this->projectNeedsUpdate($node, $csv_entry, $format);
+        if (!empty($changes)) {
+          $changes_made = true;
+          foreach ($changes as $change) {
+            $this->updateNodeField($node, $change['field'], $change['new'], $format, $csv_entry);
           }
-          $co_pi_users[] = ['target_id' => $co_pi_user->id()];
+
+          $node->set("field_project_sponsor", [
+            'value' => "NSF",
+            'format' => 'full_html',
+          ]);
+
+          try {
+            $node->save();
+            \Drupal::logger('pi_comp')->notice('Project @award_number updated/created.', ['@award_number' => $award_number]);
+          } catch (\Exception $e) {
+            \Drupal::logger('pi_comp')->error('Failed to save project @award_number. Error: @error', [
+              '@award_number' => $award_number,
+              '@error' => $e->getMessage(),
+            ]);
+            $this->messenger()->addError($this->t('Failed to save project @award_number. Please check the logs for more information.', ['@award_number' => $award_number]));
+          }
+        }
+
+        $pis = $this->extractPIs($csv_entry, $format);
+        $matched_users = $this->matchUsers($pis);
+
+        $lead_pi = $pis[0];
+        $lead_pi_user = $node->get('field_project_lead_pi_user')->entity;
+        if (!$lead_pi_user || $lead_pi_user->getAccountName() != $this->formatUsername($lead_pi['name'])) {
+          if ($matched_users[$lead_pi['name']]['matched']) {
+            $lead_pi_user = $matched_users[$lead_pi['name']]['user'];
+          } else {
+            $lead_pi_user = $this->createUser($lead_pi);
+          }
+          $node->set('field_project_lead_pi_user', ['target_id' => $lead_pi_user->id()]);
+        }
+
+        $existing_co_pis = $node->get('field_project_co_pis_user')->referencedEntities();
+        $existing_co_pi_names = array_map(function ($user) {
+          return $user->getAccountName();
+        }, $existing_co_pis);
+
+        $co_pi_users = [];
+        foreach (array_slice($pis, 1) as $co_pi) {
+          $formatted_name = $this->formatUsername($co_pi['name']);
+          if (!in_array($formatted_name, $existing_co_pi_names)) {
+            if ($matched_users[$co_pi['name']]['matched']) {
+              $co_pi_user = $matched_users[$co_pi['name']]['user'];
+            } else {
+              $co_pi_user = $this->createUser($co_pi);
+            }
+            $co_pi_users[] = ['target_id' => $co_pi_user->id()];
+          }
+        }
+        if (!empty($co_pi_users)) {
+          $node->set('field_project_co_pis_user', array_merge($node->get('field_project_co_pis_user')->getValue(), $co_pi_users));
+        }
+
+        try {
+          $node->save();
+        } catch (\Exception $e) {
+          \Drupal::logger('pi_comp')->error('Failed to save project @award_number after user updates. Error: @error', [
+            '@award_number' => $award_number,
+            '@error' => $e->getMessage(),
+          ]);
+          $this->messenger()->addError($this->t('Failed to save project @award_number after user updates. Please check the logs for more information.', ['@award_number' => $award_number]));
         }
       }
-      if (!empty($co_pi_users)) {
-        $node->set('field_project_co_pis_user', array_merge($node->get('field_project_co_pis_user')->getValue(), $co_pi_users));
+
+      if ($changes_made) {
+        $this->messenger()->addMessage($this->t('CSV entries have been imported as projects.'));
+      } else {
+        $this->messenger()->addMessage($this->t('No project changes were made.'));
       }
-
-      $node->save();
-    }
-
-    if ($changes_made) {
-      $this->messenger()->addMessage($this->t('CSV entries have been imported as projects.'));
     } else {
-      $this->messenger()->addMessage($this->t('No project changes were made.'));
+      $this->messenger()->addMessage($this->t('Page refreshed, no upload.'));
     }
   }
 
@@ -240,7 +266,6 @@ class piForm3 extends FormBase {
   }
 
   private function updateNodeField($node, $drupal_field, $csv_value, $format, $csv_column) {
-
     if ($drupal_field == 'field_award_number') {
       $node->set($drupal_field, ['target_id' => $this->getOrCreateAwardTerm($csv_value)->id()]);
     } elseif ($drupal_field == 'field_project_performance_period') {
@@ -304,8 +329,16 @@ class piForm3 extends FormBase {
       }
     }
 
-    if (!empty($current_value[0]['value']) || !empty($current_value[0]['end_value'])) {
+    // Only set the field if both values are not null
+    if (!empty($current_value[0]['value']) && !empty($current_value[0]['end_value'])) {
       $node->set('field_project_performance_period', $current_value);
+    } else {
+      // Log a warning if we're not setting the field
+      \Drupal::logger('pi_comp')->warning('Performance period not set for node @nid. Start: @start, End: @end', [
+        '@nid' => $node->id(),
+        '@start' => $current_value[0]['value'] ?? 'NULL',
+        '@end' => $current_value[0]['end_value'] ?? 'NULL',
+      ]);
     }
   }
 
@@ -317,7 +350,8 @@ class piForm3 extends FormBase {
         return $date->format('Y-m-d');
       }
     }
-    throw new \Exception("Unable to parse date: $date_string");
+    // If no valid date is found, return null instead of throwing an exception
+    return null;
   }
 
   public function importCallback(array &$form, FormStateInterface $form_state) {
@@ -332,8 +366,15 @@ class piForm3 extends FormBase {
 
       $summary = $this->generateImportSummary($csv_parse, $format);
 
-      $content = $this->t('This is the file format for an NSF Award search CSV.') .
-        '<br><br>' . $summary . '<br><br>' .
+      $content = '';
+
+      if ($format == 'format1') {
+        $content .= $this->t('FILE FORMAT 1: This is the file format for an NSF Award search CSV.');
+      } else {
+        $content .= $this->t('FILE FORMAT 2: This format imports less information. Please see documentation for more information before importing.');
+      }
+
+      $content .= '<br><br>' . $summary . '<br><br>' .
         $this->t('Do you want to proceed with the import?');
 
       $response->addCommand(new OpenModalDialogCommand(
@@ -635,6 +676,14 @@ class piForm3 extends FormBase {
             $end = $node->get($drupal_field)->end_value;
             $node_value = $this->formatDateRange($start, $end);
           }
+          // Compare non-empty values only
+          if (!empty($csv_value) && !empty($node_value) && $csv_value !== $node_value) {
+            $changes[] = [
+              'field' => $drupal_field,
+              'old' => $node_value,
+              'new' => $csv_value,
+            ];
+          }
         } elseif ($drupal_field == 'field_awarded_amount_to_date') {
           $csv_value = preg_replace('/[^0-9.]/', '', $csv_value);
         }
@@ -651,17 +700,16 @@ class piForm3 extends FormBase {
     return $changes;
   }
 
-
   private function formatDateRange($start_date, $end_date) {
-    if (!$start_date || !$end_date) {
+    if (!$start_date && !$end_date) {
       return '';
     }
-    $start = new \DateTime($start_date);
-    $end = new \DateTime($end_date);
-    return $start->format('F Y') . ' – ' . $end->format('F Y');
+    $start = $start_date ? new \DateTime($start_date) : null;
+    $end = $end_date ? new \DateTime($end_date) : null;
+    return ($start ? $start->format('F Y') : 'Unknown start date') .
+      ' – ' .
+      ($end ? $end->format('F Y') : 'Unknown end date');
   }
-
-
 
   private function getColumnMapping($format) {
     $column_mappings = [
@@ -684,30 +732,5 @@ class piForm3 extends FormBase {
     ];
 
     return $column_mappings[$format];
-  }
-
-  private function setProjectPerformancePeriod($node, $drupal_field, $date_string) {
-    $date_part = explode(':', $drupal_field)[1]; // 'start' or 'end'
-    try {
-      $date = DrupalDateTime::createFromFormat('Y-m-d', trim($date_string));
-      if (!$date) {
-        $date = DrupalDateTime::createFromFormat('m/d/Y', trim($date_string));
-      }
-      if (!$date) {
-        throw new \Exception("Unable to parse date: $date_string");
-      }
-
-      $current_value = $node->get('field_project_performance_period')->getValue();
-      $current_value[0][$date_part . '_value'] = $date->format('Y-m-d');
-      $node->set('field_project_performance_period', $current_value);
-    } catch (\Exception $e) {
-      \Drupal::logger('pi_comp')->error('Failed to parse date: @date. Error: @error', [
-        '@date' => $date_string,
-        '@error' => $e->getMessage(),
-      ]);
-      $current_value = $node->get('field_project_performance_period')->getValue();
-      $current_value[0][$date_part . '_value'] = date('Y-m-d');
-      $node->set('field_project_performance_period', $current_value);
-    }
   }
 }

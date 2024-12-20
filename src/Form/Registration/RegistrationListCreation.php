@@ -88,6 +88,11 @@ class RegistrationListCreation extends FormBase {
 
     $webform_names = [];
 
+    if (empty($invitee_user_ids)) {
+      $this->messenger()->addError($this->t('The selected invitee list is empty. Please add users to the invitee list before creating a registration list.'));
+      return;
+    }
+
     foreach ($selected_webforms as $webform_id) {
       $webform = $this->entityTypeManager->getStorage('webform')->load($webform_id);
       $webform_names[] = $webform->label();
@@ -96,7 +101,9 @@ class RegistrationListCreation extends FormBase {
       $query->join('users_field_data', 'ufd', 'ws.uid = ufd.uid');
       $query->fields('ufd', ['uid', 'name']);
       $query->condition('ws.webform_id', $webform_id);
-      $query->condition('ufd.uid', $invitee_user_ids, 'IN');
+      if (!empty($invitee_user_ids)) {
+        $query->condition('ufd.uid', $invitee_user_ids, 'IN');
+      }
       $results = $query->execute()->fetchAll();
 
       foreach ($results as $result) {
@@ -108,6 +115,10 @@ class RegistrationListCreation extends FormBase {
 
     $user_ids = array_unique($user_ids);
     $user_names = array_unique($user_names);
+
+    if (empty($user_ids)) {
+      $this->messenger()->addWarning($this->t('No users found who have submitted the selected webforms from the invitee list. The registration list will be created without users.'));
+    }
 
     $node = Node::create([
       'type' => 'registration_list',

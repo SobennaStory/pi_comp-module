@@ -94,13 +94,23 @@ class PimmProjectManager implements PimmProjectManagerInterface {
         return FALSE;
       }
 
+      // Determine initial status based on performance period
+      $status = 'active';
+      if ($node->hasField('field_project_performance_period') && !$node->get('field_project_performance_period')->isEmpty()) {
+        $end_date = $node->get('field_project_performance_period')->end_value;
+        if ($end_date && strtotime($end_date) < \Drupal::time()->getCurrentTime()) {
+          $status = 'inactive';
+          $notes = trim($notes . ' Project automatically set to inactive - performance period ended.');
+        }
+      }
+
       // Start transaction
       $transaction = $this->database->startTransaction();
 
       try {
         $fields = [
           'nid' => $node->id(),
-          'status' => 'active',
+          'status' => $status,
           'added_date' => time(),
           'added_by' => $this->currentUser->id(),
           'notes' => $notes,
@@ -118,8 +128,9 @@ class PimmProjectManager implements PimmProjectManagerInterface {
         // Clear caches
         $this->invalidateProjectCaches($node->id());
 
-        \Drupal::logger('pi_comp')->notice('Successfully added project: @nid', [
+        \Drupal::logger('pi_comp')->notice('Successfully added project: @nid with status @status', [
           '@nid' => $node->id(),
+          '@status' => $status,
           '@title' => $node->getTitle(),
         ]);
 
@@ -316,6 +327,8 @@ class PimmProjectManager implements PimmProjectManagerInterface {
         return [];
       }
 
+      $current_time = \Drupal::time()->getCurrentTime();
+
       // Build the projects array
       $projects = [];
       foreach ($tracked_projects as $nid => $tracking_data) {
@@ -330,6 +343,16 @@ class PimmProjectManager implements PimmProjectManagerInterface {
         if ($node->getType() !== 'project') {
           \Drupal::logger('pi_comp')->warning('Tracked node is not a project: @nid', ['@nid' => $nid]);
           continue;
+        }
+
+        // Check performance period and update status if needed
+        if ($node->hasField('field_project_performance_period') && !$node->get('field_project_performance_period')->isEmpty()) {
+          $end_date = $node->get('field_project_performance_period')->end_value;
+          if ($end_date && strtotime($end_date) < $current_time) {
+            // Update status to inactive if performance period has ended
+            $tracking_data->status = 'inactive';
+            $this->updateProjectStatus($nid, 'inactive', 'Automatically set to inactive - performance period ended');
+          }
         }
 
         $projects[$nid] = [

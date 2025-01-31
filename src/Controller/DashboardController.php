@@ -144,42 +144,49 @@ class DashboardController extends ControllerBase {
   }
 
   protected function getProjectRows() {
-    $query = $this->database->select('pimm_tracked_projects', 'p')
-      ->fields('p')
-      ->orderBy('added_date', 'DESC');
-
-    $tracked = $query->execute()->fetchAll();
-    if (empty($tracked)) {
-      return [];
-    }
-
     $project_data = [];
     $forms = [];
 
-    foreach ($tracked as $record) {
-      if ($node = $this->entityTypeManager->getStorage('node')->load($record->nid)) {
-        $statusForm = new \Drupal\pi_comp\Form\Compilation\ProjectStatusForm($this->entityTypeManager, $this->database, $record->nid);
-        $removeForm = new \Drupal\pi_comp\Form\Compilation\ProjectRemoveForm($this->projectManager, $this->entityTypeManager,  $record->nid);
-        $forms[$record->nid] = [
-          'status' => $this->formBuilder->getForm(
-            $statusForm, $record->nid
-          ),
-          'remove' => $this->formBuilder->getForm(
-            $removeForm, $record->nid
-          ),
-        ];
+    $projects = $this->projectManager->getProjects();
 
-        $project_data[] = [
-          'id' => $record->id,
-          'nid' => $record->nid,
-          'title' => $node->getTitle(),
-          'award_number' => $this->getAwardNumber($node),
-          'pi' => $this->getProjectPI($node),
-          'status' => $record->status,
-          'added_date' => $this->dateFormatter->format($record->added_date, 'custom', 'Y-m-d'),
-          'notes' => $record->notes,
-        ];
-      }
+    if (empty($projects)) {
+      return [
+        'rows' => [],
+        'forms' => [],
+      ];
+    }
+
+    foreach ($projects as $nid => $project) {
+      $node = $project['node'];
+      $tracking = $project['tracking'];
+
+      $statusForm = new \Drupal\pi_comp\Form\Compilation\ProjectStatusForm(
+        $this->entityTypeManager,
+        $this->database,
+        $nid
+      );
+
+      $removeForm = new \Drupal\pi_comp\Form\Compilation\ProjectRemoveForm(
+        $this->projectManager,
+        $this->entityTypeManager,
+        $nid
+      );
+
+      $forms[$nid] = [
+        'status' => $this->formBuilder->getForm($statusForm, $nid),
+        'remove' => $this->formBuilder->getForm($removeForm, $nid),
+      ];
+
+      $project_data[] = [
+        'id' => $tracking['id'],
+        'nid' => $nid,
+        'title' => $node->getTitle(),
+        'award_number' => $this->getAwardNumber($node),
+        'pi' => $this->getProjectPI($node),
+        'status' => $tracking['status'],
+        'added_date' => $this->dateFormatter->format($tracking['added_date'], 'custom', 'Y-m-d'),
+        'notes' => $tracking['notes'],
+      ];
     }
 
     return [
@@ -189,21 +196,22 @@ class DashboardController extends ControllerBase {
   }
 
   protected function getProjectData() {
-    // Get basic project data
     $projectData = $this->getProjectRows();
-    $projects = $projectData['rows'];
+    $projects = $projectData['rows'] ?? [];
 
-    // Count by status
     $statusCounts = [];
-    foreach ($projects as $project) {
-      $status = $project['status'];
-      $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
+
+    if (!empty($projects)) {
+      foreach ($projects as $project) {
+        $status = $project['status'];
+        $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
+      }
     }
 
     return [
       'count' => count($projects),
       'rows' => $projects,
-      'forms' => $projectData['forms'],
+      'forms' => $projectData['forms'] ?? [],
       'add_form' => $this->formBuilder->getForm('Drupal\pi_comp\Form\Compilation\ProjectAddForm'),
       'bulk_form' => $this->formBuilder->getForm('Drupal\pi_comp\Form\Compilation\ProjectBulkAddForm'),
       'status_counts' => $statusCounts,
